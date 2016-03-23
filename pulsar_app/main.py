@@ -9,7 +9,7 @@ from bokeh.models import ColumnDataSource, HoverTool,TapTool,WheelZoomTool,PanTo
 from bokeh.models.widgets import Slider, Select
 from bokeh.io import curdoc
 from bokeh.models.widgets import DataTable, DateFormatter, TableColumn
-
+import ast
 
 csv="H:/WareHouse/bokeh/pulsar_app/pulsar_data_test.csv"
 pdata=pandas.read_csv(csv)
@@ -33,6 +33,7 @@ columns = [
     ]
 
 axis_map = {
+    "Pulsar":"Pulsar",
     "TOAs": "TOAs",
     "Raw_Profiles": "Raw_Profiles",
     "Period": "Period",
@@ -45,22 +46,22 @@ axis_map = {
 # Create Input controls
 # sliders
 TOAs = Slider(title="TOAs", value=0, start=min(pdata["TOAs"])*0, end=max(pdata["TOAs"])*1.1, step=10)
-Raw_Profiles = Slider(title="Raw_Profiles",  value=0, start=min(pdata["Raw_Profiles"])*0, end=max(pdata["Raw_Profiles"])*1.1, step=10)
+Raw_Profiles = Slider(title="Raw Profiles",  value=0, start=min(pdata["Raw_Profiles"])*0, end=max(pdata["Raw_Profiles"])*1.1, step=10)
 Period = Slider(title="Period",  value=0, start=min(pdata["Period"])*0, end=max(pdata["Period"])*1.1, step=0.000001)
-Period_Derivative = Slider(title="Period_Derivative",  value=0, start=min(pdata["Period_Derivative"])*10e21*0, end=max(pdata["Period_Derivative"])*10e21*1.1,step=1)
+Period_Derivative = Slider(title="Period Derivative",  value=0, start=min(pdata["Period_Derivative"])*10e21*0, end=max(pdata["Period_Derivative"])*10e21*1.1,step=1)
 DM = Slider(title="Dispersion Measure",  value=0, start=min(pdata["DM"])*0, end=max(pdata["DM"])*1.1, step=1)
 RMS = Slider(title="Root-mean-square Residuals",  value=0, start=min(pdata["RMS"])*0, end=max(pdata["RMS"])*1.1, step=0.1)
-Operate_on_Y=TextInput(title="Example:x*1e-3")
-Operate_on_Y=TextInput(title="Example:x*1e-3")
+Operate_on_X=TextInput(title="Operate on X",value="Example:x*1e3")
+Operate_on_Y=TextInput(title="Operate on Y",value="Example:log(y)")
 # dropdowns
 Binary = Select(title="Binary", options=["","Y","-"], value="")
-x_axis = Select(title="X Axis", options=sorted(axis_map.keys()), value="Period")
-y_axis = Select(title="Y Axis", options=sorted(axis_map.keys()), value="RMS")
+x_axis = Select(title="X Axis", options=sorted(axis_map.keys()), value="Pulsar")
+y_axis = Select(title="Y Axis", options=sorted(axis_map.keys()), value="Period")
 
 hover = HoverTool(tooltips=[
     ("Pulsar","@Pulsar"),
     ("TOAs", "@TOAs"),
-    ("RMS", "@RMS")
+    ("Period", "@Period")
 ])
 lasso = LassoSelectTool()
 tap=TapTool()
@@ -73,17 +74,15 @@ reset=ResetTool()
 # plot.add_layout(yaxis, 'left')
 # plot.add_layout(Grid(dimension=1, ticker=yaxis.ticker))
 
-
-
 source = ColumnDataSource(dict(x=[],y=[],TOAs=[],Raw_Profiles=[],Period=[],
         Period_Derivative=[],
         DM=[],
         RMS=[],
     ))
 
-plot = Figure(title="Pulsar_data", plot_width=800,toolbar_location="above",plot_height=300,tools=[pan,lasso,tap,zoom,reset,hover])
-plot.circle(x="x", y="y",source=source, fill_color="#396285", size=7,line_color=None, fill_alpha=1)
-data_table = DataTable(source=source, columns=columns, width=800, height=300,editable=True,selectable="checkbox",scroll_to_selection=True,fit_columns=True)
+plot = Figure(title="Pulsar data", plot_width=1200,responsive=True,toolbar_location="above",plot_height=500,tools=[pan,lasso,tap,zoom,reset,hover])
+plot.circle(x="x", y="y",source=source, fill_color="#396285", size=8, fill_alpha=0.6)
+data_table = DataTable(source=source, columns=columns, width=1200, height=300,editable=True,selectable="checkbox",scroll_to_selection=True,fit_columns=True)
 
 
 def select_pulsars():
@@ -98,12 +97,28 @@ def select_pulsars():
     ]
     if (Binary_val != ""):
         selected = selected[selected.Binary.str.contains(Binary_val)==True]
+
+    fx_str="lambda x:"+Operate_on_X.value.strip()
+    fy_str="lambda y:"+Operate_on_Y.value.strip()
+    try:
+        fnx=eval(fx_str)
+        selected[x_axis.value]=map(fnx,selected[x_axis.value])
+        #print "df[x_name]=====",selected[x_axis.value]
+    except Exception as e:
+        print "Error is ::::::::::",e
+        print fx_str
+    try:
+        fny=eval(fy_str)
+        selected[y_axis.value]=map(fny,selected[y_axis.value])
+    except:
+        pass
     return selected
 
 def update(attrname, old, new):
     df = select_pulsars()
-    x_name = axis_map[x_axis.value]
-    y_name = axis_map[y_axis.value]
+
+    x = df[axis_map[x_axis.value]] if axis_map[x_axis.value] <> "Pulsar" else df.index
+    y = df[axis_map[y_axis.value]] if axis_map[y_axis.value] <> "Pulsar" else df.index
 
     plot.xaxis.axis_label = x_axis.value
     plot.yaxis.axis_label = y_axis.value
@@ -114,8 +129,8 @@ def update(attrname, old, new):
         sel_count=0
 
     source.data = dict(
-        x=df[x_name],
-        y=df[y_name],
+        x=x,
+        y=y,
         Pulsar=df["Pulsar"],
         TOAs=df["TOAs"],
         Raw_Profiles=df["Raw_Profiles"],
@@ -127,15 +142,10 @@ def update(attrname, old, new):
     )
     scope_count=len(df)
     plot.title ="%i Pulsar in Scope"%scope_count
+    print "source updated"
 
-    print "source=",source.data
 
-
-controls = [TOAs, Raw_Profiles, Period, Period_Derivative, DM, RMS, Binary, x_axis, y_axis]
-# for control in controls:
-#     control.on_change('value', update)
-#inputs_control=HBox(VBoxForm(*controls), width=300)
-# Add Glyphs
+controls = [TOAs, Raw_Profiles, Period, Period_Derivative, DM, RMS,Binary,x_axis,y_axis, HBox(height=50),Operate_on_X,Operate_on_Y]
 
 for control in controls:
     control.on_change('value', update)
@@ -144,12 +154,9 @@ def update_title(attr,old,new):
     plot.title=str(len(source.selected["1d"]["indices"]))+" Pulsar selected"
 source.on_change("selected",update_title)
 
-
-#cty_glyph = Circle(x=x_axis.value, y=y_axis.value, fill_color="#396285", size=8, fill_alpha=0.5, line_alpha=0.5)
-
-inputs = HBox(VBoxForm(*controls), width=300)
-
+inputs = HBox(VBoxForm(*controls[:-5]), width=400)
+plot_control=HBox(VBoxForm(*controls[-5:]), width=400)
 update(None, None, None) # initial load of the data
-curdoc().add_root(HBox(inputs, VBox(plot,data_table,width=1000), width=1100))
+curdoc().add_root(HBox(inputs, VBox(plot,data_table,width=1200),plot_control, width=1800))
 
 

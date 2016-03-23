@@ -21,6 +21,7 @@ df.columns=new_col
 data1=dict(Pulsar=df["Pulsar"],Period=df["Period"],title="")
 source1 = ColumnDataSource(df)
 
+print [i for i in df.index]
 columns = [
         TableColumn(field="Pulsar", title="Pulsar"),
         TableColumn(field="TOAs", title="TOAs"),
