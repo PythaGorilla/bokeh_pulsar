@@ -1,19 +1,17 @@
 import pandas
-import sys
-import os
-import numpy as np
-from numpy import mean
-from copy import deepcopy
 from bokeh.plotting import Figure
 from bokeh.models import ColumnDataSource, HoverTool,TapTool,WheelZoomTool,PanTool,LassoSelectTool,ResetTool,HBox,VBox,VBoxForm,TextInput
 from bokeh.models.widgets import Slider, Select
 from bokeh.io import curdoc
-from bokeh.models.widgets import DataTable, DateFormatter, TableColumn
-import ast
+from bokeh.models.widgets import DataTable, TableColumn
 
-csv="H:/WareHouse/bokeh/pulsar_app/pulsar_data_test.csv"
+import sys, os
+
+abspath=os.path.dirname(__file__)
+
+
+csv=abspath+"/pulsar_data_test.csv"
 pdata=pandas.read_csv(csv)
-#pdata["colors"]=np.where(pdata["TOAs"] > 0, "orange", "grey")
 new_col=["Pulsar","TOAs","Raw_Profiles","Period","Period_Derivative","DM","RMS","Binary"]
 pdata.columns=new_col
 pdata["x"]=""
@@ -68,11 +66,6 @@ tap=TapTool()
 zoom=WheelZoomTool()
 pan=PanTool()
 reset=ResetTool()
-# Set up x & y axis
-# plot.add_layout(LinearAxis(), 'below')
-# yaxis = LinearAxis()
-# plot.add_layout(yaxis, 'left')
-# plot.add_layout(Grid(dimension=1, ticker=yaxis.ticker))
 
 source = ColumnDataSource(dict(x=[],y=[],TOAs=[],Raw_Profiles=[],Period=[],
         Period_Derivative=[],
@@ -103,7 +96,6 @@ def select_pulsars():
     try:
         fnx=eval(fx_str)
         selected[x_axis.value]=map(fnx,selected[x_axis.value])
-        #print "df[x_name]=====",selected[x_axis.value]
     except Exception as e:
         print "Error is ::::::::::",e
         print fx_str
