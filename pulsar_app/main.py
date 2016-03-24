@@ -5,7 +5,7 @@ from bokeh.models import ColumnDataSource, HoverTool, TapTool, WheelZoomTool, Pa
     VBox, VBoxForm, TextInput
 from bokeh.models.widgets import DataTable, TableColumn,Button,Slider, Select
 from bokeh.plotting import Figure
-import numpy
+from copy import deepcopy
 
 abspath = os.path.dirname(__file__)
 
@@ -16,7 +16,8 @@ new_col = ["Pulsar", "TOAs", "Raw_Profiles", "Period", "Period_Derivative", "DM"
 pdata.columns = new_col
 pdata["x"] = ""
 pdata["y"] = ""
-global scope_count
+scope_count=0
+record_source=ColumnDataSource(pdata)
 
 columns = [
     TableColumn(field="Pulsar", title="Pulsar"),
@@ -57,7 +58,15 @@ Binary = Select(title="Binary", options=["", "Y", "-"], value="")
 x_axis = Select(title="X Axis", options=sorted(axis_map.keys()), value="Pulsar")
 y_axis = Select(title="Y Axis", options=sorted(axis_map.keys()), value="Period")
 
-
+#Input widigets
+Input1 = TextInput(title="Pulsar")
+Input2 = TextInput(title="TOAs")
+Input3 = TextInput(title="Raw_Profiles")
+Input4 = TextInput(title="Period")
+Input5 = TextInput(title="Period_Derivative")
+Input6 = TextInput(title="DM")
+Input7 = TextInput(title="RMS")
+Input8 = TextInput(title="Binary")
 
 hover = HoverTool(tooltips=[
     ("Pulsar", "@Pulsar"),
@@ -70,45 +79,95 @@ zoom = WheelZoomTool()
 pan = PanTool()
 reset = ResetTool()
 
-source = ColumnDataSource(dict(x=[], y=[],Pulsar=[], TOAs=[], Raw_Profiles=[], Period=[],
-                               Period_Derivative=[],
-                               DM=[],
-                               RMS=[],
-                               Binary=[]
-                               ))
+source = ColumnDataSource(dict(
+        x=pdata["Pulsar"],
+        y=pdata["Period"],
+        Pulsar=pdata["Pulsar"],
+        TOAs=pdata["TOAs"],
+        Raw_Profiles=pdata["Raw_Profiles"],
+        Period=pdata["Period"],
+        Period_Derivative=pdata["Period_Derivative"],
+        DM=pdata["DM"],
+        RMS=pdata["RMS"],
+        Binary=pdata["Binary"]
+    ))
 
 plot = Figure(title="Pulsar data", plot_width=1200, responsive=True, toolbar_location="above", plot_height=500,
               tools=[pan, lasso, tap, zoom, reset, hover])
 plot.circle(x="x", y="y", source=source, fill_color="#396285", size=8, fill_alpha=0.6)
-data_table = DataTable(source=source, columns=columns, width=1200, height=300, editable=True, selectable="checkbox",
+data_table = DataTable(source=source, columns=columns, width=1200, height=500, editable=False,sortable=False,
+                       selectable="checkbox",
                        scroll_to_selection=True, fit_columns=True)
 
 
 def onclick_del():
-    source.data=dict(source.to_df().drop(source.selected["1d"]["indices"]))
-    print("clicked!!!!!!!!!!!!!!")
+    sdf=source.to_df()
+    rsdf=record_source.to_df()
+
+    rows=source.selected["1d"]["indices"]
+    pulsar_names=sdf.loc[rows]["Pulsar"]
+
+    for p in pulsar_names:
+        rsdf=rsdf[rsdf.Pulsar != p]
+        sdf=sdf[sdf.Pulsar != p]
+
+    source.data=dict(sdf)
+    record_source.data=dict(rsdf)
+    source.selected=record_source.selected #clean selected
+
+    #source.data=dict(sdf.drop(source.selected["1d"]["indices"]))
 
 def onclick_add():
+    #source data to panda format
     sdf=source.to_df()
-    sdf.loc[sdf.shape[0]+1]=numpy.zeros(sdf.shape[1])
+    rsdf=record_source.to_df()
+    new_row = pandas.DataFrame(dict(
+        x=Input1.value,
+        y=float(Input4.value),
+        Pulsar=Input1.value,
+        TOAs=float(Input2.value),
+        Raw_Profiles=int(Input3.value),
+        Period=float(Input4.value),
+        Period_Derivative=float(Input5.value),
+        DM=float(Input6.value),
+        RMS=float(Input7.value),
+        Binary=Input8.value
+    ),index=[0])
+
+    new_df=pandas.DataFrame(new_row)
+    row_data=new_df.iloc[0]
+    sdf.loc[sdf.shape[0]+1]=row_data
+    rsdf.loc[rsdf.shape[0]+1]=row_data
     source.data=dict(sdf)
+    record_source.data=dict(rsdf)
+
+def onclick_reset():
+    global record_source
+    record_source=ColumnDataSource(pdata)
+    global initilized
+    initilized=False
+    update_display(1,1,1)
+
 
 #Buttons
-del_btn=Button(label="Delete rows",type="success")
-add_btn=Button(label="Add row",type="success")
+del_btn=Button(label=" Delete Rows",type="success")
+add_btn=Button(label="Add Row",type="success")
+reset_btn=Button(label="Reload Data",type="success")
 
 del_btn.on_click(onclick_del)
 add_btn.on_click(onclick_add)
+reset_btn.on_click(onclick_reset)
 
 def select_pulsars():
     Binary_val = Binary.value
-    selected = pdata[
-        (pdata.TOAs >= TOAs.value) &
-        (pdata.Raw_Profiles >= Raw_Profiles.value) &
-        (pdata.Period >= Period.value) &
-        (pdata.Period_Derivative >= Period_Derivative.value / 10e21) &
-        (pdata.DM >= DM.value) &
-        (pdata.RMS >= RMS.value)
+    tsource=record_source.to_df()
+    selected = tsource[
+        (tsource.TOAs >= TOAs.value) &
+        (tsource.Raw_Profiles >= Raw_Profiles.value) &
+        (tsource.Period >= Period.value) &
+        (tsource.Period_Derivative >= Period_Derivative.value / 10e21) &
+        (tsource.DM >= DM.value) &
+        (tsource.RMS >= RMS.value)
         ]
     if (Binary_val != ""):
         selected = selected[selected.Binary.str.contains(Binary_val) == True]
@@ -130,7 +189,7 @@ def select_pulsars():
     return selected
 
 
-def update(attrname, old, new):
+def update_display(attrname, old, new):
     df = select_pulsars()
 
     x = df[axis_map[x_axis.value]] if axis_map[x_axis.value] <> "Pulsar" else df.index
@@ -159,19 +218,31 @@ def update(attrname, old, new):
     plot.title = "%i Pulsar in Scope" % scope_count
     print("source updated")
 
-
 controls = [TOAs, Raw_Profiles, Period, Period_Derivative, DM, RMS, Binary, x_axis, y_axis, HBox(height=50),
             Operate_on_X, Operate_on_Y]
 
 for control in controls:
-    control.on_change('value', update)
+    control.on_change('value', update_display)
+
+input_controls=[Input1,Input2,Input3,Input4,Input5,Input6,Input7,Input8]
+
 
 def update_title(attr, old, new):
     plot.title = str(len(source.selected["1d"]["indices"])) + " Pulsar selected"
+    # # get selected data row
+    # rows=source.selected["1d"]["indices"]
+    # rowdata=source.to_df().loc[rows].iloc[0]
+    # for c in input_controls:
+    #     c.value=str(rowdata.loc[c.title])
+
+
 
 source.on_change("selected", update_title)
 
-inputs = HBox(VBoxForm(*controls[:-5]), width=400)
-plot_control = HBox(VBoxForm(*controls[-5:]), width=400)
-update(None, None, None)  # initial load of the data
-curdoc().add_root(HBox(inputs, VBox(plot, HBox(data_table),width=1200), plot_control, width=1800))
+input_controls_box=HBox(HBox(*input_controls))
+del_btn_box=VBox(HBox(HBox(width=200),del_btn,height=80,width=200),height=100)
+reset_btn_box=HBox(HBox(width=300),VBox(reset_btn,HBox(height=140),add_btn),height=80,width=100)
+filters_box= HBox(VBox(VBoxForm(*controls[:-5]),del_btn_box), width=400)
+plot_control_box = VBox(VBoxForm(*controls[-5:]),reset_btn_box,width=400)
+update_display(None, None, None)  # initial load of the data
+curdoc().add_root(HBox(filters_box, VBox(plot,input_controls_box, HBox(data_table),width=1200), plot_control_box, width=1800))

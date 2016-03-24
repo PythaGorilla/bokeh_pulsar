@@ -69,13 +69,13 @@ plot.add_layout(Grid(dimension=1, ticker=yaxis.ticker))
 
 controls = [TOAs, Raw_Profiles, Period, Period_Derivative, DM, RMS, Binary, x_axis, x_axis, y_axis]
 # for control in controls:
-#     control.on_change('value', update)
+#     control.on_change('value', update_display)
 inputs_control=HBox(VBoxForm(*controls), width=300)
 # Add Glyphs
 cty_glyph = Circle(x="TOAs", y="Period", fill_color="#396285", size=8, fill_alpha=0.5, line_alpha=0.5)
 cty = plot.add_glyph(source1, cty_glyph)
 
-
+print plot.title
 show(hplot(inputs_control,vplot(plot, data_table)))
 
 
@@ -84,7 +84,7 @@ show(hplot(inputs_control,vplot(plot, data_table)))
 #     print data_table.value
 #     return data_table.value
 #
-# def update(attrname, old, new):
+# def update_display(attrname, old, new):
 #     p1.title=data_table.value
 #
 # # source1.callback = CustomJS(args=dict(source=source1), code="""
@@ -100,10 +100,10 @@ show(hplot(inputs_control,vplot(plot, data_table)))
 # layout = hplot(vform(data_table),p1)
 # controls = [data_table]
 # for control in controls:
-#     control.on_change('value', update)
+#     control.on_change('value', update_display)
 #
 # inputs = HBox(VBoxForm(*controls), width=300)
 #
-# update(None, None, None) # initial load of the data
+# update_display(None, None, None) # initial load of the data
 #
 # curdoc().add_root(HBox(inputs, p1, width=1100))
