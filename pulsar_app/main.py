@@ -3,10 +3,9 @@ import pandas
 from bokeh.io import curdoc
 from bokeh.models import ColumnDataSource, HoverTool, TapTool, WheelZoomTool, PanTool, LassoSelectTool, ResetTool, HBox, \
     VBox, VBoxForm, TextInput
-from bokeh.models.widgets import DataTable, TableColumn
-from bokeh.models.widgets import Slider, Select
+from bokeh.models.widgets import DataTable, TableColumn,Button,Slider, Select
 from bokeh.plotting import Figure
-
+import numpy
 
 abspath = os.path.dirname(__file__)
 
@@ -58,6 +57,8 @@ Binary = Select(title="Binary", options=["", "Y", "-"], value="")
 x_axis = Select(title="X Axis", options=sorted(axis_map.keys()), value="Pulsar")
 y_axis = Select(title="Y Axis", options=sorted(axis_map.keys()), value="Period")
 
+
+
 hover = HoverTool(tooltips=[
     ("Pulsar", "@Pulsar"),
     ("TOAs", "@TOAs"),
@@ -69,10 +70,11 @@ zoom = WheelZoomTool()
 pan = PanTool()
 reset = ResetTool()
 
-source = ColumnDataSource(dict(x=[], y=[], TOAs=[], Raw_Profiles=[], Period=[],
+source = ColumnDataSource(dict(x=[], y=[],Pulsar=[], TOAs=[], Raw_Profiles=[], Period=[],
                                Period_Derivative=[],
                                DM=[],
                                RMS=[],
+                               Binary=[]
                                ))
 
 plot = Figure(title="Pulsar data", plot_width=1200, responsive=True, toolbar_location="above", plot_height=500,
@@ -81,6 +83,22 @@ plot.circle(x="x", y="y", source=source, fill_color="#396285", size=8, fill_alph
 data_table = DataTable(source=source, columns=columns, width=1200, height=300, editable=True, selectable="checkbox",
                        scroll_to_selection=True, fit_columns=True)
 
+
+def onclick_del():
+    source.data=dict(source.to_df().drop(source.selected["1d"]["indices"]))
+    print("clicked!!!!!!!!!!!!!!")
+
+def onclick_add():
+    sdf=source.to_df()
+    sdf.loc[sdf.shape[0]+1]=numpy.zeros(sdf.shape[1])
+    source.data=dict(sdf)
+
+#Buttons
+del_btn=Button(label="Delete rows",type="success")
+add_btn=Button(label="Add row",type="success")
+
+del_btn.on_click(onclick_del)
+add_btn.on_click(onclick_add)
 
 def select_pulsars():
     Binary_val = Binary.value
@@ -102,7 +120,7 @@ def select_pulsars():
         fnx = eval(fx_str)
         selected[x_axis.value] = map(fnx, selected[x_axis.value])
     except Exception as e:
-        print("Error is ::::::::::"+e)
+        print("Error is ::::::::::"+str(e))
         print(fx_str)
     try:
         fny = eval(fy_str)
@@ -148,7 +166,6 @@ controls = [TOAs, Raw_Profiles, Period, Period_Derivative, DM, RMS, Binary, x_ax
 for control in controls:
     control.on_change('value', update)
 
-
 def update_title(attr, old, new):
     plot.title = str(len(source.selected["1d"]["indices"])) + " Pulsar selected"
 
@@ -157,4 +174,4 @@ source.on_change("selected", update_title)
 inputs = HBox(VBoxForm(*controls[:-5]), width=400)
 plot_control = HBox(VBoxForm(*controls[-5:]), width=400)
 update(None, None, None)  # initial load of the data
-curdoc().add_root(HBox(inputs, VBox(plot, data_table, width=1200), plot_control, width=1800))
+curdoc().add_root(HBox(inputs, VBox(plot, HBox(data_table),width=1200), plot_control, width=1800))
