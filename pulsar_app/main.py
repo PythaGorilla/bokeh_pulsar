@@ -6,6 +6,7 @@ from bokeh.models import ColumnDataSource, HoverTool, TapTool, WheelZoomTool, Pa
     VBox, VBoxForm, TextInput
 from bokeh.models.widgets import DataTable, TableColumn, Button, Slider, Select
 from bokeh.plotting import Figure
+from copy import deepcopy
 
 abspath = os.path.dirname(__file__)
 
@@ -125,7 +126,7 @@ def onclick_del():
     source.data = dict(sdf)
     record_source.data = dict(rsdf)
     source.selected = record_source.selected  # clean selected
-    selection_record=update_selection(1,1,1)
+    #selection_record=update_selection(1,1,1)
 
 
 def onclick_add():
@@ -152,7 +153,7 @@ def onclick_add():
     rsdf.loc[rsdf.shape[0] + 1] = row_data
     source.data = dict(sdf)
     record_source.data = dict(rsdf)
-    selection_record=update_selection(1,1,1)
+    #selection_record=update_selection(1,1,1)
 
 def onclick_reset():
     global record_source
@@ -173,12 +174,11 @@ reset_btn.on_click(onclick_reset)
 
 
 def filtered_pulsar():
-
-    sdf = source.to_df()
-    rows = selection_record["1d"]["indices"]
-    pulsar_names = sdf.loc[rows]["Pulsar"]
-    for p in pulsar_names:
-        sdf = sdf[sdf.Pulsar != p]
+    # sdf = source.to_df()
+    # rows = source.selected["1d"]["indices"]
+    # pulsar_names = sdf.loc[rows]["Pulsar"]
+    # for p in pulsar_names:
+    #     sdf = sdf[sdf.Pulsar != p]
     # print source.selected,"\n"
 
     Binary_val = Binary.value
@@ -236,10 +236,12 @@ def update_display(attrname, old, new):
         RMS=df["RMS"],
         Binary=df["Binary"]
     )
+    global scope_count
     scope_count = len(df)
     plot.title = "%i Pulsar in Scope" % scope_count+" %i selected"%sel_count
     print("source updated")
-    update_title(1,1,1)
+    #source.selected=selection_record
+    #update_title(1,1,1)
     update_selection(1,1,1)
 
 controls = [TOAs, Raw_Profiles, Period, Period_Derivative, DM, RMS, Binary, x_axis, y_axis, HBox(height=50),
@@ -255,46 +257,48 @@ def update_title(attr, old, new):
     global selected_names
     selected_names={} #clear
     indices=source.selected["1d"]["indices"]
-    plot.title = str(len(indices)) + " Pulsar selected"
+    plot.title =  "%i Pulsar in Scope" % scope_count+" %s selected"%str(len(indices))
 
     selected_indices=indices
     data_names={}
     for i,name in enumerate(source.data["Pulsar"]):
         data_names[name]=i
-    print "data_names:",data_names
+    #print "data_names:",data_names
     for name,j in data_names.iteritems():
         if j in selected_indices:
             selected_names[name]=j
-    print "selection changed ",source.selected
+    #print("selection changed ",source.selected)
 
 
 def update_selection(attr,old,new):
-    global selection_record
-    global selected_names
-    global source
+    # global selection_record
+    # global selected_names
+    # global source
     new_names={}
     for i,name in enumerate(source.data["Pulsar"]):
         new_names[name]=i
-    print "new_names::",new_names
+    #print "new_names::",new_names
     new_indices=[]
     for n in selected_names.keys():
-        print "n and  selected_names.keys:",n,"   ",selected_names.keys()
+        #print "n and  selected_names.keys:",n,"   ",selected_names.keys()
         if n in new_names.keys():
-            print "yes,in selected"
+            #print "yes,in selected"
             i=new_names[n]
             selected_names[n]=i
             new_indices.append([i])
         else:
             del selected_names[n]
-    source.selected["1d"]["indices"]=new_indices
-    print "selection updated!!!!",source.selected,"\n"
-    return source.selected
+
+    selection_record["1d"]["indices"]=deepcopy(new_indices)
+    source.selected=selection_record
+    #source.selected=record_source.selected
+    #print("selection updated!!!!",source.selected,"\n")
     # #for name in self.current_names and not in new_names:
     # self._data=new_data
 
 
 source.on_change("selected", update_title)
-source.on_change("data",update_selection)
+#source.on_change("data",update_selection)
 
 input_controls_box = HBox(HBox(*input_controls))
 del_btn_box = VBox(HBox(HBox(width=200), del_btn, height=80, width=200), height=100)
