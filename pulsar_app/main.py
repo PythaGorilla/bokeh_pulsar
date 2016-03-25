@@ -9,6 +9,7 @@ from bokeh.plotting import Figure
 
 abspath = os.path.dirname(__file__)
 
+
 # load data from csv
 csv = abspath + "/pulsar_data_test.csv"
 pdata = pandas.read_csv(csv)
@@ -18,6 +19,13 @@ pdata["x"] = ""
 pdata["y"] = ""
 scope_count = 0
 record_source = ColumnDataSource(pdata)
+
+selection_record={
+        '0d': {'glyph': None, 'indices': []},
+        '1d': {'indices': []},
+        '2d': {'indices': []}
+    }
+selected_names={}
 
 columns = [
     TableColumn(field="Pulsar", title="Pulsar"),
@@ -79,6 +87,7 @@ zoom = WheelZoomTool()
 pan = PanTool()
 reset = ResetTool()
 
+
 source = ColumnDataSource(dict(
     x=pdata["Pulsar"],
     y=pdata["Period"],
@@ -101,6 +110,8 @@ data_table = DataTable(source=source, columns=columns, width=1200, height=500, e
 
 
 def onclick_del():
+    global selection_record
+
     sdf = source.to_df()
     rsdf = record_source.to_df()
 
@@ -114,10 +125,11 @@ def onclick_del():
     source.data = dict(sdf)
     record_source.data = dict(rsdf)
     source.selected = record_source.selected  # clean selected
-
+    selection_record=update_selection(1,1,1)
 
 
 def onclick_add():
+    global selection_record
     # source data to panda format
     sdf = source.to_df()
     rsdf = record_source.to_df()
@@ -140,7 +152,7 @@ def onclick_add():
     rsdf.loc[rsdf.shape[0] + 1] = row_data
     source.data = dict(sdf)
     record_source.data = dict(rsdf)
-
+    selection_record=update_selection(1,1,1)
 
 def onclick_reset():
     global record_source
@@ -160,10 +172,18 @@ add_btn.on_click(onclick_add)
 reset_btn.on_click(onclick_reset)
 
 
-def select_pulsars():
+def filtered_pulsar():
+
+    sdf = source.to_df()
+    rows = selection_record["1d"]["indices"]
+    pulsar_names = sdf.loc[rows]["Pulsar"]
+    for p in pulsar_names:
+        sdf = sdf[sdf.Pulsar != p]
+    # print source.selected,"\n"
+
     Binary_val = Binary.value
     tsource = record_source.to_df()
-    selected = tsource[
+    filtered = tsource[
         (tsource.TOAs >= TOAs.value) &
         (tsource.Raw_Profiles >= Raw_Profiles.value) &
         (tsource.Period >= Period.value) &
@@ -172,27 +192,27 @@ def select_pulsars():
         (tsource.RMS >= RMS.value)
         ]
     if (Binary_val != ""):
-        selected = selected[selected.Binary.str.contains(Binary_val) == True]
+        filtered = filtered[filtered.Binary.str.contains(Binary_val) == True]
 
     fx_str = "lambda x:" + Operate_on_X.value.strip()
     fy_str = "lambda y:" + Operate_on_Y.value.strip()
     try:
         # need some better function
         fnx = eval(fx_str)
-        selected[x_axis.value] = map(fnx, selected[x_axis.value])
+        filtered[x_axis.value] = map(fnx, filtered[x_axis.value])
     except Exception as e:
         print("Error is ::::::::::" + str(e))
         print(fx_str)
     try:
         fny = eval(fy_str)
-        selected[y_axis.value] = map(fny, selected[y_axis.value])
+        filtered[y_axis.value] = map(fny, filtered[y_axis.value])
     except:
         pass
-    return selected
+    return filtered
 
 
 def update_display(attrname, old, new):
-    df = select_pulsars()
+    df = filtered_pulsar()
 
     x = df[axis_map[x_axis.value]] if axis_map[x_axis.value] <> "Pulsar" else df.index
     y = df[axis_map[y_axis.value]] if axis_map[y_axis.value] <> "Pulsar" else df.index
@@ -219,7 +239,8 @@ def update_display(attrname, old, new):
     scope_count = len(df)
     plot.title = "%i Pulsar in Scope" % scope_count+" %i selected"%sel_count
     print("source updated")
-
+    update_title(1,1,1)
+    update_selection(1,1,1)
 
 controls = [TOAs, Raw_Profiles, Period, Period_Derivative, DM, RMS, Binary, x_axis, y_axis, HBox(height=50),
             Operate_on_X, Operate_on_Y]
@@ -231,10 +252,49 @@ input_controls = [Input1, Input2, Input3, Input4, Input5, Input6, Input7, Input8
 
 
 def update_title(attr, old, new):
-    plot.title = str(len(source.selected["1d"]["indices"])) + " Pulsar selected"
+    global selected_names
+    selected_names={} #clear
+    indices=source.selected["1d"]["indices"]
+    plot.title = str(len(indices)) + " Pulsar selected"
+
+    selected_indices=indices
+    data_names={}
+    for i,name in enumerate(source.data["Pulsar"]):
+        data_names[name]=i
+    print "data_names:",data_names
+    for name,j in data_names.iteritems():
+        if j in selected_indices:
+            selected_names[name]=j
+    print "selection changed ",source.selected
+
+
+def update_selection(attr,old,new):
+    global selection_record
+    global selected_names
+    global source
+    new_names={}
+    for i,name in enumerate(source.data["Pulsar"]):
+        new_names[name]=i
+    print "new_names::",new_names
+    new_indices=[]
+    for n in selected_names.keys():
+        print "n and  selected_names.keys:",n,"   ",selected_names.keys()
+        if n in new_names.keys():
+            print "yes,in selected"
+            i=new_names[n]
+            selected_names[n]=i
+            new_indices.append([i])
+        else:
+            del selected_names[n]
+    source.selected["1d"]["indices"]=new_indices
+    print "selection updated!!!!",source.selected,"\n"
+    return source.selected
+    # #for name in self.current_names and not in new_names:
+    # self._data=new_data
 
 
 source.on_change("selected", update_title)
+source.on_change("data",update_selection)
 
 input_controls_box = HBox(HBox(*input_controls))
 del_btn_box = VBox(HBox(HBox(width=200), del_btn, height=80, width=200), height=100)
